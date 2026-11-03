@@ -1,5 +1,5 @@
 -- ============================================================
--- Findes · importación de las notas 2024, 2025 y 2026
+-- Findes · importación de las notas 2025 y 2026
 -- Pegar entero en Supabase → SQL Editor → New query → Run
 -- · No toca los findes en los que ya hayáis creado planes en la app.
 -- · Se puede ejecutar dos veces sin duplicar nada.
@@ -117,78 +117,7 @@ from (values
   ('Clase ESIC', 'trabajo', 'ramon', date '2025-12-13', date '2025-12-13', null, 'confirmado', date '2025-12-12'),
   ('Concierto Morgan', 'concierto', 'ambos', date '2025-12-19', date '2025-12-19', 'Salamanca', 'confirmado', date '2025-12-19'),
   ('Madrid San', 'otro', 'ambos', date '2025-12-20', date '2025-12-20', null, 'confirmado', date '2025-12-19'),
-  ('Comida Rivas', 'comida', 'ambos', date '2025-12-27', date '2025-12-27', null, 'confirmado', date '2025-12-26'),
-  ('Sierra con Maribel', 'viaje', 'ambos', date '2024-01-12', date '2024-01-14', null, 'confirmado', date '2024-01-12'),
-  ('Cumple Noe', 'cumple', 'irene', date '2024-01-19', date '2024-01-21', 'París', 'confirmado', date '2024-01-19'),
-  ('Aniversario', 'viaje', 'ambos', date '2024-01-26', date '2024-01-28', 'San Sebastián', 'confirmado', date '2024-01-26'),
-  ('Cumple Noe y Laura', 'cumple', 'ambos', date '2024-02-03', date '2024-02-03', null, 'confirmado', date '2024-02-02'),
-  ('Padres de Ramón en Madrid', 'familia', 'ramon', date '2024-02-09', date '2024-02-11', null, 'confirmado', date '2024-02-09'),
-  ('Irene en Salamanca', 'otro', 'irene', date '2024-02-09', date '2024-02-11', null, 'confirmado', date '2024-02-09'),
-  ('Copa Sevilla', 'golf', 'ramon', date '2024-02-16', date '2024-02-18', null, 'confirmado', date '2024-02-16'),
-  ('Badajoz', 'familia', 'ambos', date '2024-02-23', date '2024-02-25', null, 'confirmado', date '2024-02-23'),
-  ('Baqueira', 'viaje', 'ambos', date '2024-03-01', date '2024-03-03', null, 'confirmado', date '2024-03-01'),
-  ('Padres de Ramón', 'familia', 'ambos', date '2024-03-08', date '2024-03-10', null, 'confirmado', date '2024-03-08'),
-  ('Aperitivo Pauli', 'comida', 'ambos', date '2024-03-10', date '2024-03-10', null, 'confirmado', date '2024-03-08'),
-  ('Semana Santa', 'viaje', 'ambos', date '2024-03-29', date '2024-03-31', null, 'confirmado', date '2024-03-29'),
-  ('Fuegote', 'comida', 'ambos', date '2024-04-05', date '2024-04-05', null, 'confirmado', date '2024-04-05'),
-  ('Txuletada', 'comida', 'ambos', date '2024-04-05', date '2024-04-07', null, 'confirmado', date '2024-04-05'),
-  ('Masters de Augusta', 'golf', 'ramon', date '2024-04-12', date '2024-04-14', null, 'confirmado', date '2024-04-12'),
-  ('Outlet, Palacio Santa Bárbara y misa JC', 'otro', 'ambos', date '2024-04-13', date '2024-04-13', null, 'confirmado', date '2024-04-12'),
-  ('Badajoz', 'familia', 'ambos', date '2024-04-19', date '2024-04-21', null, 'confirmado', date '2024-04-19'),
-  ('Copa Giralda', 'golf', 'ramon', date '2024-04-26', date '2024-04-28', 'Sevilla', 'confirmado', date '2024-04-26'),
-  ('Cumple Aitana', 'cumple', 'ambos', date '2024-04-26', date '2024-04-28', null, 'confirmado', date '2024-04-26'),
-  ('Córdoba, Ronda y Sevilla', 'viaje', 'ambos', date '2024-05-03', date '2024-05-05', null, 'confirmado', date '2024-05-03'),
-  ('Cañas con Pauli y su novio', 'comida', 'ambos', date '2024-05-03', date '2024-05-05', null, 'confirmado', date '2024-05-03'),
-  ('Toros', 'otro', 'ambos', date '2024-05-10', date '2024-05-10', null, 'confirmado', date '2024-05-10'),
-  ('SICAMPO', 'otro', 'ambos', date '2024-05-10', date '2024-05-12', null, 'confirmado', date '2024-05-10'),
-  ('Concierto Eric Clapton', 'concierto', 'ambos', date '2024-05-17', date '2024-05-19', null, 'confirmado', date '2024-05-17'),
-  ('PGA Championship', 'golf', 'ramon', date '2024-05-17', date '2024-05-19', null, 'confirmado', date '2024-05-17'),
-  ('Segovia DYC', 'viaje', 'ambos', date '2024-05-24', date '2024-05-26', 'Segovia', 'confirmado', date '2024-05-24'),
-  ('Campeonato Absoluto Moraleja', 'golf', 'ramon', date '2024-05-31', date '2024-06-02', null, 'pendiente', date '2024-05-31'),
-  ('Graduación ESIC', 'otro', 'ramon', date '2024-05-31', date '2024-06-02', null, 'confirmado', date '2024-05-31'),
-  ('Mesa electoral', 'otro', 'ambos', date '2024-06-09', date '2024-06-09', null, 'confirmado', date '2024-06-07'),
-  ('Casa de Carola', 'comida', 'ambos', date '2024-06-08', date '2024-06-08', null, 'confirmado', date '2024-06-07'),
-  ('US Open', 'golf', 'ramon', date '2024-06-14', date '2024-06-16', null, 'confirmado', date '2024-06-14'),
-  ('Badajoz – Salamanca', 'viaje', 'ambos', date '2024-06-14', date '2024-06-16', null, 'confirmado', date '2024-06-14'),
-  ('Getxo', 'viaje', 'ambos', date '2024-06-21', date '2024-06-23', null, 'confirmado', date '2024-06-21'),
-  ('Torneo Neguri', 'golf', 'ramon', date '2024-06-21', date '2024-06-23', null, 'confirmado', date '2024-06-21'),
-  ('Olivar con Tati', 'otro', 'ambos', date '2024-06-28', date '2024-06-28', null, 'confirmado', date '2024-06-28'),
-  ('Campeonato Puerta de Hierro', 'golf', 'ramon', date '2024-06-28', date '2024-06-30', null, 'confirmado', date '2024-06-28'),
-  ('Fiesta en casa de San', 'otro', 'ambos', date '2024-06-28', date '2024-06-30', null, 'confirmado', date '2024-06-28'),
-  ('A Salamanca', 'viaje', 'ambos', date '2024-07-05', date '2024-07-07', null, 'confirmado', date '2024-07-05'),
-  ('Campeonato Santander', 'golf', 'ramon', date '2024-07-12', date '2024-07-14', 'Pedreña', 'confirmado', date '2024-07-12'),
-  ('British Open', 'golf', 'ramon', date '2024-07-19', date '2024-07-21', null, 'confirmado', date '2024-07-19'),
-  ('FIB Benicàssim', 'concierto', 'ambos', date '2024-07-19', date '2024-07-21', null, 'confirmado', date '2024-07-19'),
-  ('Boda Bea y Abraham', 'boda', 'ambos', date '2024-07-26', date '2024-07-28', null, 'confirmado', date '2024-07-26'),
-  ('Formentera', 'viaje', 'ambos', date '2024-08-02', date '2024-08-04', null, 'confirmado', date '2024-08-02'),
-  ('Ida a St Andrews', 'viaje', 'ambos', date '2024-08-09', date '2024-08-11', null, 'confirmado', date '2024-08-09'),
-  ('Vuelta de St Andrews', 'viaje', 'ambos', date '2024-08-16', date '2024-08-18', null, 'confirmado', date '2024-08-16'),
-  ('Puerto de Santa María', 'viaje', 'ambos', date '2024-08-23', date '2024-08-25', null, 'confirmado', date '2024-08-23'),
-  ('Torneo Guadalajara', 'golf', 'ramon', date '2024-09-08', date '2024-09-08', null, 'confirmado', date '2024-09-06'),
-  ('Ryder Badajoz-Puerto', 'golf', 'ramon', date '2024-09-13', date '2024-09-15', null, 'confirmado', date '2024-09-13'),
-  ('Jardín de las Delicias', 'otro', 'ambos', date '2024-09-20', date '2024-09-22', null, 'confirmado', date '2024-09-20'),
-  ('Cumple Carola', 'cumple', 'ambos', date '2024-09-21', date '2024-09-21', null, 'confirmado', date '2024-09-20'),
-  ('Torneo Moraleja', 'golf', 'ramon', date '2024-09-27', date '2024-09-29', null, 'confirmado', date '2024-09-27'),
-  ('Open de España', 'golf', 'ramon', date '2024-09-27', date '2024-09-29', null, 'confirmado', date '2024-09-27'),
-  ('Quedada Cañi', 'otro', 'ambos', date '2024-09-27', date '2024-09-29', null, 'confirmado', date '2024-09-27'),
-  ('Salamanca con vecinos', 'viaje', 'ambos', date '2024-10-04', date '2024-10-06', null, 'confirmado', date '2024-10-04'),
-  ('Comida con Mireia', 'comida', 'ambos', date '2024-10-18', date '2024-10-18', null, 'confirmado', date '2024-10-18'),
-  ('Cumple papá (70)', 'cumple', 'ambos', date '2024-10-18', date '2024-10-20', null, 'confirmado', date '2024-10-18'),
-  ('Circle', 'otro', 'irene', date '2024-10-25', date '2024-10-25', null, 'confirmado', date '2024-10-25'),
-  ('Elyella en la Riviera', 'otro', 'irene', date '2024-10-26', date '2024-10-26', null, 'confirmado', date '2024-10-25'),
-  ('Ramón en Badajoz', 'familia', 'ramon', date '2024-10-25', date '2024-10-27', null, 'confirmado', date '2024-10-25'),
-  ('Cumple Lucía', 'cumple', 'ambos', date '2024-11-01', date '2024-11-03', null, 'confirmado', date '2024-11-01'),
-  ('Aperitivo Fuegote', 'comida', 'ambos', date '2024-11-01', date '2024-11-03', null, 'confirmado', date '2024-11-01'),
-  ('Lanzarote', 'viaje', 'ambos', date '2024-11-08', date '2024-11-10', null, 'confirmado', date '2024-11-08'),
-  ('La Daniela', 'comida', 'ambos', date '2024-11-15', date '2024-11-17', null, 'confirmado', date '2024-11-15'),
-  ('Julián de Tolosa', 'comida', 'ambos', date '2024-11-22', date '2024-11-24', null, 'confirmado', date '2024-11-22'),
-  ('Cena en casa de Tati', 'comida', 'ambos', date '2024-11-29', date '2024-12-01', null, 'confirmado', date '2024-11-29'),
-  ('Padres de Ramón en Madrid', 'familia', 'ambos', date '2024-11-29', date '2024-12-01', null, 'confirmado', date '2024-11-29'),
-  ('Zambombas', 'viaje', 'ambos', date '2024-12-06', date '2024-12-08', 'Jerez', 'confirmado', date '2024-12-06'),
-  ('Dobles de Madrid con Nick', 'golf', 'ramon', date '2024-12-13', date '2024-12-15', 'Centro Nacional', 'confirmado', date '2024-12-13'),
-  ('Cumple Tati', 'cumple', 'ambos', date '2024-12-13', date '2024-12-15', null, 'confirmado', date '2024-12-13'),
-  ('Cumple San', 'cumple', 'ambos', date '2024-12-20', date '2024-12-22', null, 'confirmado', date '2024-12-20'),
-  ('Ramón en Salamanca', 'otro', 'ramon', date '2024-12-27', date '2024-12-29', null, 'confirmado', date '2024-12-27')
+  ('Comida Rivas', 'comida', 'ambos', date '2025-12-27', date '2025-12-27', null, 'confirmado', date '2025-12-26')
 ) as v(title, category, who, date_from, date_to, location, status, friday)
 where not exists (
   select 1 from public.plans p
@@ -197,14 +126,11 @@ where not exists (
 
 -- Notas de entre semana
 insert into public.week_notes (weekend, text) values
-  (date '2025-04-25', 'Miércoles 23: cena Raquel'),
-  (date '2024-03-15', 'Miércoles: cena con Lucía & cía'),
-  (date '2024-07-12', 'Miércoles: Pauli y Jonás')
+  (date '2025-04-25', 'Miércoles 23: cena Raquel')
 on conflict (weekend) do nothing;
 
 -- Días de puente que aparecían en las notas (findes largos)
 insert into public.extra_days (day, label) values
-  (date '2024-05-06', 'Puente'),
   (date '2025-08-11', 'Puente'),
   (date '2025-08-12', 'Puente'),
   (date '2026-08-10', 'Puente'),

@@ -47,7 +47,15 @@ const S = {
   draftKey: null,
   busy: false,
   push: null,        // estado de los avisos en este dispositivo
+  members: [],
+  activity: [],      // novedades (más recientes primero)
+  dismissed: new Set(), // 'planId|año' de propuestas descartadas
+  dup: false,        // mostrando el bloque "duplicar" en el editor
 };
+
+const SEEN_KEY = 'findes-novedades-vistas';
+function seenAt() { try { return localStorage.getItem(SEEN_KEY) || ''; } catch (_) { return ''; } }
+function markSeen() { try { localStorage.setItem(SEEN_KEY, new Date().toISOString()); } catch (_) { /* nada */ } }
 
 const app = document.getElementById('app');
 
@@ -153,6 +161,9 @@ const ICON = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
   note: '<path d="M4 4h16v12H8l-4 4z"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+  repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
 };
 const icon = (name, size = 22) =>
   `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ICON[name]}</svg>`;
@@ -191,6 +202,14 @@ async function loadAll() {
   ]);
   const err = m.error || p.error || n.error || e.error;
   if (err) throw err;
+  // Tablas de la migración 003: si aún no existen, la app sigue funcionando
+  const [a, rd] = await Promise.all([
+    sb.from('activity').select('*').order('id', { ascending: false }).limit(150),
+    sb.from('repeat_dismissed').select('*'),
+  ]);
+  S.activity = a.error ? [] : a.data;
+  S.dismissed = new Set(rd.error ? [] : rd.data.map((x) => x.plan_id + '|' + x.year));
+  S.members = m.data;
   const email = (S.session?.user?.email || '').toLowerCase();
   S.me = m.data.find((x) => x.email === email) || null;
   S.plans = p.data;
@@ -207,6 +226,8 @@ function subscribe() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, onRemoteChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'week_notes' }, onRemoteChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'extra_days' }, onRemoteChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'activity' }, onRemoteChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'repeat_dismissed' }, onRemoteChange)
     .subscribe();
 }
 let remoteTimer = null;
@@ -249,6 +270,8 @@ function render() {
     case 'nuevo': html = viewEditor({ friday: r.a, day: r.b }); break;
     case 'plan': html = viewEditor({ id: r.a }); break;
     case 'ajustes': html = viewSettings(); break;
+    case 'novedades': html = viewNews(); break;
+    case 'propuestas': html = viewProposals(y); break;
     default: html = viewHome();
   }
   app.innerHTML = html;
@@ -312,9 +335,10 @@ function viewHome() {
   const afterPs = after ? plansIn(after.start, after.end) : [];
   return `
   <main class="screen">
-    <header class="top">
-      <span class="eyebrow">${todayLabel}</span>
-      <h1>Findes</h1>
+    <header class="top row-between">
+      <div><span class="eyebrow">${todayLabel}</span><h1>Findes</h1></div>
+      <a class="bell" href="#/novedades" aria-label="Novedades${unread() ? `: ${unread()} sin ver` : ''}">${icon('bell', 24)}
+        ${unread() ? `<span class="bell-n">${unread() > 9 ? '9+' : unread()}</span>` : ''}</a>
     </header>
     <section class="pad stack">
       <a class="hero" href="#/finde/${w.id}">
@@ -398,7 +422,7 @@ function viewList(year) {
       <div><span class="eyebrow">RAMÓN E IRENE</span><h1>Findes</h1></div>
       ${yearArrows('findes', year)}
     </header>
-    ${holidayBanner(year)}
+    ${holidayBanner(year)}${proposalBanner(year)}
     <div class="filters">
       <button class="fchip ${S.listFilter === 'todos' ? 'on' : ''}" data-action="filter" data-v="todos">Todos</button>
       <button class="fchip ${S.listFilter === 'libres' ? 'on' : ''}" data-action="filter" data-v="libres">Libres · ${free.length}</button>
@@ -430,7 +454,7 @@ function viewYear(year) {
       <h1>${year}</h1>
       ${yearArrows('ano', year, false)}
     </header>
-    ${holidayBanner(year)}
+    ${holidayBanner(year)}${proposalBanner(year)}
     <section class="pad legend">${leg('A', 'Los dos')}${leg('R', 'Ramón')}${leg('I', 'Irene')}${leg('M', 'Cada uno lo suyo')}${leg('L', 'Libre')}</section>
     <section class="pad ygrid">
       ${byMonth.map((arr, m) => `<div class="yrow"><span class="ym ${m === new Date().getMonth() && year === new Date().getFullYear() ? 'cur' : ''}">${MONTHS_SHORT[m][0] + MONTHS_SHORT[m].slice(1).toLowerCase()}</span>
@@ -463,6 +487,8 @@ function viewWeekend(friday) {
   const multi = ps.filter((p) => p.date_from !== p.date_to);
   const single = ps.filter((p) => p.date_from === p.date_to);
 
+  const prevW = neighborWeekend(w, -1);
+  const nextW = neighborWeekend(w, 1);
   const before = addDays(w.start, -1);
   const afterD = addDays(w.end, 1);
   const extrasHere = w.days.filter((d) => d.kind === 'extra');
@@ -482,8 +508,12 @@ function viewWeekend(friday) {
 
   return `
   <main class="screen">
-    <div class="nav">
+    <div class="nav between">
       <a href="#/findes/${w.year}">${icon('back')} Findes</a>
+      <div class="wknav">
+        ${prevW ? `<a href="#/finde/${prevW.id}" aria-label="Finde anterior">${icon('back', 20)}</a>` : ''}
+        ${nextW ? `<a href="#/finde/${nextW.id}" aria-label="Finde siguiente">${icon('next', 20)}</a>` : ''}
+      </div>
     </div>
     <header class="top tight">
       <span class="eyebrow">${MONTHS[w.month].toUpperCase()} ${w.year}</span>
@@ -529,7 +559,7 @@ function startDraft({ id, friday, day }) {
     S.draft = {
       id: null, title: '', category: 'otro', who: S.me?.person === 'irene' ? 'irene' : 'ramon',
       date_from: d || w.start, date_to: d || w.end, start_time: '', end_time: '',
-      location: '', status: 'confirmado', notes: '', friday: w.id, multi: false, timed: false,
+      location: '', status: 'confirmado', notes: '', friday: w.id, multi: false, timed: false, repeat: null,
     };
     if (!d) { // por defecto: viernes a domingo
       S.draft.date_from = w.days.find((x) => x.base).date;
@@ -598,7 +628,22 @@ function viewEditor(args) {
       <label class="field"><span class="lab">NOTAS</span>
         <textarea data-field="notes" rows="3" placeholder="Con quién, reservas, qué llevar…">${esc(D.notes || '')}</textarea></label>
 
-      ${D.id ? `<button type="button" class="btn danger" data-action="delete">${icon('trash', 18)} Borrar plan</button>` : ''}
+      <div class="field"><span class="lab">¿SE REPITE CADA AÑO?</span>
+        <div class="seg">
+          <button type="button" class="${!D.repeat ? 'on' : ''}" data-action="repeat" data-v="">No</button>
+          <button type="button" class="${D.repeat === 'fecha' ? 'on' : ''}" data-action="repeat" data-v="fecha">Misma fecha</button>
+          <button type="button" class="${D.repeat === 'finde' ? 'on' : ''}" data-action="repeat" data-v="finde">Mismo finde</button>
+        </div>
+        <span class="muted sm hint">${D.repeat === 'fecha' ? 'Cumpleaños, aniversarios… Se propondrá el año que viene en el finde de esa fecha.'
+          : D.repeat === 'finde' ? 'Torneos, eventos… Se propondrá el año que viene en el mismo finde del mes (p. ej. el 2.º de abril).'
+          : 'Si se repite, la app te lo propondrá para el año siguiente.'}</span>
+      </div>
+
+      ${D.id ? `<div class="field"><span class="lab">DUPLICAR EN OTRO FINDE</span>
+        <div class="group"><label class="grow-row"><span>Cualquier día de ese finde</span>
+          <input id="dup-date" type="date" min="${MIN_YEAR}-01-01" max="${maxYear()}-12-31"></label></div>
+        <button type="button" class="btn" data-action="dup">${icon('copy', 18)} Duplicar</button></div>
+        <button type="button" class="btn danger" data-action="delete">${icon('trash', 18)} Borrar plan</button>` : ''}
     </section>
   </main>`;
 }
@@ -633,6 +678,203 @@ function viewHolidays(year) {
     </section>
     ${tabbar('ajustes')}
   </main>`;
+}
+
+// ---- novedades
+
+function unread() {
+  const since = seenAt();
+  const me = S.me?.email;
+  return S.activity.filter((a) => a.actor_email !== me && (!since || a.at > since)).length;
+}
+
+function dayLabel(isoTs) {
+  const d = new Date(isoTs);
+  const today = new Date(); const yest = new Date(); yest.setDate(today.getDate() - 1);
+  const same = (a, b) => a.toDateString() === b.toDateString();
+  if (same(d, today)) return 'Hoy';
+  if (same(d, yest)) return 'Ayer';
+  return `${DOW_LONG[d.getDay()]} ${d.getDate()} de ${MONTHS[d.getMonth()]}`;
+}
+
+function viewNews() {
+  const since = seenAt();
+  setTimeout(markSeen, 1500);
+  const byEmail = Object.fromEntries(S.members.map((m) => [m.email, m]));
+  let body = ''; let last = '';
+  for (const a of S.activity) {
+    const lbl = dayLabel(a.at);
+    if (lbl !== last) { body += `<h2 class="month">${lbl}</h2>`; last = lbl; }
+    const m = byEmail[a.actor_email];
+    const fresh = a.actor_email !== S.me.email && (!since || a.at > since);
+    const hhmm = new Date(a.at).toTimeString().slice(0, 5);
+    body += `<a class="news ${fresh ? 'fresh' : ''}" href="${esc(a.url || '#/')}">
+      ${badge(m ? m.person : 'ambos')}
+      <div class="grow"><div class="ntitle">${esc(a.title)}</div><div class="muted sm">${esc(a.detail || '')}</div></div>
+      <span class="muted sm">${hhmm}</span></a>`;
+  }
+  if (!S.activity.length) body = '<p class="muted">Todavía no hay cambios. Aquí aparecerá lo que añadáis, cambiéis o borréis cada uno.</p>';
+  return `
+  <main class="screen">
+    <div class="nav"><a href="#/">${icon('back')} Inicio</a></div>
+    <header class="top tight"><h1>Novedades</h1></header>
+    <section class="pad stack-s">${body}</section>
+    ${tabbar('inicio')}
+  </main>`;
+}
+
+// ---- navegar entre findes
+
+function neighborWeekend(w, dir) {
+  const list = [...weekends(w.year - 1), ...weekends(w.year), ...weekends(w.year + 1)];
+  const i = list.findIndex((x) => x.id === w.id);
+  const n = list[i + dir];
+  if (!n || n.year < MIN_YEAR || n.year > maxYear()) return null;
+  return n;
+}
+
+let touch = null;
+document.addEventListener('touchstart', (e) => {
+  if (route().name !== 'finde' || e.touches.length !== 1) { touch = null; return; }
+  if (e.target.closest('textarea, input')) { touch = null; return; }
+  touch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (!touch) return;
+  const dx = e.changedTouches[0].clientX - touch.x;
+  const dy = e.changedTouches[0].clientY - touch.y;
+  touch = null;
+  if (Math.abs(dx) < 70 || Math.abs(dy) > 50) return;
+  const w = weekendById(route().a);
+  const n = w && neighborWeekend(w, dx < 0 ? 1 : -1);
+  if (n) location.hash = `#/finde/${n.id}`;
+}, { passive: true });
+
+// ---- planes que se repiten cada año
+
+const norm = (t) => (t || '').trim().toLowerCase();
+
+function nearestWeekend(d) {
+  const w = weekendContaining(d);
+  if (w && w.start <= d && d <= w.end) return w;
+  const wd = dow(d); // 1 lun … 4 jue
+  return weekendById(wd === 1 || wd === 2 ? addDays(d, -(wd + 2)) : fridayFor(d));
+}
+
+function proposalTarget(p, year) {
+  const src = weekendContaining(p.date_from);
+  let target;
+  if (p.repeat === 'fecha') {
+    let md = p.date_from.slice(5);
+    if (md === '02-29') md = '02-28';
+    target = nearestWeekend(`${year}-${md}`);
+  } else {
+    const sameMonthPrev = weekends(src.year).filter((w) => w.month === src.month);
+    const idx = sameMonthPrev.findIndex((w) => w.id === src.id);
+    const cand = weekends(year).filter((w) => w.month === src.month);
+    target = cand[Math.min(idx, cand.length - 1)];
+  }
+  if (!target) return null;
+  const off1 = diffDays(src.friday, p.date_from);
+  const off2 = diffDays(src.friday, p.date_to);
+  return { w: target, from: addDays(target.friday, off1), to: addDays(target.friday, off2) };
+}
+
+function proposals(year) {
+  if (year < new Date().getFullYear()) return [];
+  const titlesThisYear = new Set(S.plans.filter((p) => weekendContaining(p.date_from)?.year === year).map((p) => norm(p.title)));
+  const seen = new Set();
+  const out = [];
+  for (const p of S.plans) {
+    if (!p.repeat) continue;
+    const src = weekendContaining(p.date_from);
+    if (!src || src.year !== year - 1) continue;
+    if (titlesThisYear.has(norm(p.title)) || seen.has(norm(p.title))) continue;
+    if (S.dismissed.has(p.id + '|' + year)) continue;
+    const t = proposalTarget(p, year);
+    if (!t) continue;
+    seen.add(norm(p.title));
+    out.push({ p, year, ...t });
+  }
+  return out.sort((a, b) => a.from.localeCompare(b.from));
+}
+
+function proposalBanner(year) {
+  const n = proposals(year).length;
+  if (!n) return '';
+  return `<a class="banner blue pad-x" href="#/propuestas/${year}">${icon('repeat', 16)} ${n} ${n === 1 ? 'plan anual' : 'planes anuales'} de ${year - 1} por poner en ${year} · Revisar ›</a>`;
+}
+
+async function acceptProposal(id, year, silent = false) {
+  const pr = proposals(year).find((x) => x.p.id === id);
+  if (!pr) return;
+  const p = pr.p;
+  const r = await sb.from('plans').insert({
+    title: p.title, category: p.category, who: p.who, date_from: pr.from, date_to: pr.to,
+    start_time: p.start_time, end_time: p.end_time, location: p.location, notes: p.notes,
+    status: p.repeat === 'fecha' ? 'confirmado' : 'pendiente', repeat: p.repeat,
+  });
+  if (r.error) { toast('Error: ' + r.error.message); return; }
+  if (!silent) { await loadAll(); render(); toast(`«${p.title}» añadido`); }
+}
+
+function viewProposals(year) {
+  const list = proposals(year);
+  const items = list.map((x) => `<div class="pcard prop">
+      <span class="bar" style="background:${(CATS[x.p.category] || CATS.otro).color}"></span>
+      <div class="grow"><div class="ptitle">${esc(x.p.title)}</div>
+        <div class="muted sm">${longRange(x.w)}${x.from === x.to ? ' · ' + DOW_LONG[dow(x.from)] : ''} · ${x.p.repeat === 'fecha' ? 'misma fecha' : 'mismo finde del mes'}</div>
+        <div class="row-actions">
+          <button class="fchip on" data-action="prop-add" data-id="${x.p.id}" data-year="${year}">Añadir</button>
+          <button class="fchip" data-action="prop-no" data-id="${x.p.id}" data-year="${year}">Este año no</button>
+        </div></div>
+      ${badge(x.p.who, 'long')}</div>`).join('');
+  return `
+  <main class="screen">
+    <div class="nav"><a href="#/findes/${year}">${icon('back')} Findes</a></div>
+    <header class="top tight"><span class="eyebrow">PLANES QUE SE REPITEN</span><h1>Propuestas ${year}</h1></header>
+    <section class="pad stack">
+      ${list.length ? `<p class="muted sm">Planes de ${year - 1} marcados como anuales que aún no están en ${year}. Los torneos y eventos se añaden como <b>pendientes</b> hasta que confirméis la fecha.</p>
+        ${items}
+        <button class="btn primary" data-action="prop-all" data-year="${year}">Añadir todas (${list.length})</button>`
+        : `<p class="muted">No hay propuestas pendientes para ${year}.</p>`}
+    </section>
+    ${tabbar('findes')}
+  </main>`;
+}
+
+// ---- duplicar y contraseña
+
+async function duplicate() {
+  const D = S.draft;
+  const d = document.getElementById('dup-date')?.value;
+  if (!d) { toast('Elige un día del finde de destino'); return; }
+  const target = nearestWeekend(d);
+  const src = weekendById(D.friday);
+  if (!target) { toast('Fecha fuera de rango'); return; }
+  const shift = diffDays(src.friday, target.friday);
+  const r = await sb.from('plans').insert({
+    title: D.title, category: D.category, who: D.who,
+    date_from: addDays(D.date_from, shift), date_to: addDays(D.date_to, shift),
+    start_time: D.timed && D.start_time ? D.start_time : null, end_time: D.timed && D.end_time ? D.end_time : null,
+    location: D.location || null, status: D.status, notes: D.notes || null,
+  });
+  if (r.error) { toast('Error: ' + r.error.message); return; }
+  S.draft = null; S.draftKey = null;
+  await loadAll();
+  location.hash = `#/finde/${target.id}`;
+  toast('Plan duplicado');
+}
+
+async function changePassword() {
+  const a = document.getElementById('pwd1').value;
+  const b = document.getElementById('pwd2').value;
+  if (a.length < 6) { toast('Mínimo 6 caracteres'); return; }
+  if (a !== b) { toast('Las contraseñas no coinciden'); return; }
+  const r = await sb.auth.updateUser({ password: a });
+  if (r.error) { toast('Error: ' + r.error.message); return; }
+  document.getElementById('pwd1').value = ''; document.getElementById('pwd2').value = '';
+  toast('Contraseña cambiada');
 }
 
 // ---- avisos push
@@ -720,6 +962,13 @@ function viewSettings() {
       <a class="group link-row" href="#/festivos/${new Date().getFullYear()}">
         <div class="grow-row"><span>Festivos</span><span class="muted">Ver y añadir ${icon('next', 16)}</span></div>
       </a>
+      <div class="field"><span class="lab">CAMBIAR CONTRASEÑA</span>
+        <div class="group">
+          <label class="grow-row"><span>Nueva</span><input id="pwd1" type="password" autocomplete="new-password"></label>
+          <label class="grow-row"><span>Repetir</span><input id="pwd2" type="password" autocomplete="new-password"></label>
+        </div>
+        <button class="btn" data-action="pwd">Cambiar contraseña</button>
+      </div>
       <div class="group">
         <div class="grow-row"><span>Versión</span><span class="muted">${APP_VERSION}</span></div>
         <div class="grow-row"><span>Planes guardados</span><span class="muted">${S.plans.length}</span></div>
@@ -746,6 +995,7 @@ async function save() {
     start_time: D.timed && D.start_time ? D.start_time : null,
     end_time: D.timed && D.end_time ? D.end_time : null,
     location: (D.location || '').trim() || null, status: D.status, notes: (D.notes || '').trim() || null,
+    repeat: D.repeat || null,
   };
   S.busy = true;
   const res = D.id ? await sb.from('plans').update(row).eq('id', D.id) : await sb.from('plans').insert(row);
@@ -830,6 +1080,17 @@ document.addEventListener('click', async (ev) => {
       if (r.error) toast('Error: ' + r.error.message); else { await loadAll(); render(); }
       break;
     }
+    case 'repeat': D.repeat = el.dataset.v || null; render(); break;
+    case 'dup': await duplicate(); break;
+    case 'prop-add': await acceptProposal(el.dataset.id, Number(el.dataset.year)); break;
+    case 'prop-all': for (const pr of proposals(Number(el.dataset.year))) await acceptProposal(pr.p.id, pr.year, true);
+      await loadAll(); render(); toast('Propuestas añadidas'); break;
+    case 'prop-no': {
+      const r = await sb.from('repeat_dismissed').upsert({ plan_id: el.dataset.id, year: Number(el.dataset.year) });
+      if (r.error) toast('Error: ' + r.error.message); else { await loadAll(); render(); }
+      break;
+    }
+    case 'pwd': await changePassword(); break;
     case 'push-on': await enablePush(); break;
     case 'push-off': await disablePush(); break;
     case 'test-push': {
