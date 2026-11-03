@@ -272,3 +272,8 @@ h1 { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
   .ycell.sM span { color: #15171C; }
   input, textarea { color-scheme: dark; }
 }
+
+/* v0.4 */
+.calmark { color: var(--accent); vertical-align: -2px; }
+.calrow { display: flex; align-items: center; gap: 8px; }
+.calrow svg { color: var(--accent); }

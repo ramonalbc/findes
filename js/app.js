@@ -51,7 +51,15 @@ const S = {
   activity: [],      // novedades (más recientes primero)
   dismissed: new Set(), // 'planId|año' de propuestas descartadas
   dup: false,        // mostrando el bloque "duplicar" en el editor
+  synced: new Set(), // planes que YO sincronizo con mi Calendario
 };
+
+const CAL_KEY = 'findes-calendario-suscrito';
+function calSubscribed() { try { return localStorage.getItem(CAL_KEY) === '1'; } catch (_) { return false; } }
+function calUrl() {
+  const t = S.me?.cal_token;
+  return t ? `webcal://${SUPABASE_URL.replace(/^https?:\/\//, '')}/functions/v1/calendar?t=${t}` : null;
+}
 
 const SEEN_KEY = 'findes-novedades-vistas';
 function seenAt() { try { return localStorage.getItem(SEEN_KEY) || ''; } catch (_) { return ''; } }
@@ -161,6 +169,7 @@ const ICON = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
   note: '<path d="M4 4h16v12H8l-4 4z"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/>',
   bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
   repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
@@ -203,10 +212,12 @@ async function loadAll() {
   const err = m.error || p.error || n.error || e.error;
   if (err) throw err;
   // Tablas de la migración 003: si aún no existen, la app sigue funcionando
-  const [a, rd] = await Promise.all([
+  const [a, rd, cs] = await Promise.all([
     sb.from('activity').select('*').order('id', { ascending: false }).limit(150),
     sb.from('repeat_dismissed').select('*'),
+    sb.from('calendar_sync').select('plan_id'),
   ]);
+  S.synced = new Set(cs.error ? [] : cs.data.map((x) => x.plan_id));
   S.activity = a.error ? [] : a.data;
   S.dismissed = new Set(rd.error ? [] : rd.data.map((x) => x.plan_id + '|' + x.year));
   S.members = m.data;
@@ -473,7 +484,7 @@ function planCard(p, w) {
   if (p.location) bits.push(esc(p.location));
   return `<a class="pcard" href="#/plan/${p.id}">
     <span class="bar" style="background:${c.color}"></span>
-    <div class="grow"><div class="ptitle">${esc(p.title)}${p.status === 'pendiente' ? ' <span class="tag-pend">PENDIENTE</span>' : ''}</div>
+    <div class="grow"><div class="ptitle">${esc(p.title)}${p.status === 'pendiente' ? ' <span class="tag-pend">PENDIENTE</span>' : ''}${S.synced.has(p.id) ? ` <span class="calmark" title="En mi Calendario">${icon('cal', 15)}</span>` : ''}</div>
     <div class="muted sm">${bits.join(' · ')}</div>
     ${p.notes ? `<div class="pnotes">${esc(p.notes)}</div>` : ''}</div>
     ${badge(p.who, 'long')}
@@ -551,7 +562,7 @@ function startDraft({ id, friday, day }) {
     const p = S.plans.find((x) => x.id === id);
     if (!p) { S.draft = null; return; }
     const w = weekendContaining(p.date_from);
-    S.draft = { ...p, start_time: time(p.start_time), end_time: time(p.end_time), friday: w.id,
+    S.draft = { ...p, start_time: time(p.start_time), end_time: time(p.end_time), friday: w.id, sync: S.synced.has(p.id),
       multi: p.date_from < w.start || p.date_to > w.end, timed: !!p.start_time };
   } else {
     const w = weekendById(friday) || weekendContaining(todayIso());
@@ -559,7 +570,7 @@ function startDraft({ id, friday, day }) {
     S.draft = {
       id: null, title: '', category: 'otro', who: S.me?.person === 'irene' ? 'irene' : 'ramon',
       date_from: d || w.start, date_to: d || w.end, start_time: '', end_time: '',
-      location: '', status: 'confirmado', notes: '', friday: w.id, multi: false, timed: false, repeat: null,
+      location: '', status: 'confirmado', notes: '', friday: w.id, multi: false, timed: false, repeat: null, sync: false,
     };
     if (!d) { // por defecto: viernes a domingo
       S.draft.date_from = w.days.find((x) => x.base).date;
@@ -623,6 +634,17 @@ function viewEditor(args) {
             <button type="button" class="${D.status === 'confirmado' ? 'on' : ''}" data-action="status" data-v="confirmado">Confirmado</button>
             <button type="button" class="${D.status === 'pendiente' ? 'on' : ''}" data-action="status" data-v="pendiente">Pendiente</button>
           </div></div>
+      </div>
+
+      <div class="field">
+        <div class="group">
+          <div class="grow-row"><span class="calrow">${icon('cal', 20)} Sincronizar con mi Calendario</span>
+            <button type="button" class="switch ${D.sync ? 'on' : ''}" data-action="sync" role="switch" aria-checked="${D.sync}" aria-label="Sincronizar con mi Calendario"><i></i></button></div>
+        </div>
+        <span class="muted sm hint">${D.sync
+          ? (calSubscribed() ? 'Aparecerá en tu app Calendario (solo en el tuyo). Los cambios pueden tardar hasta una hora.'
+            : 'Aparecerá en tu app Calendario cuando te suscribas una vez desde Ajustes → Calendario del iPhone.')
+          : 'Desactivado: este plan no sale en tu Calendario del iPhone.'}</span>
       </div>
 
       <label class="field"><span class="lab">NOTAS</span>
@@ -948,6 +970,17 @@ function pushSection() {
   return `<div class="card-plain stack-s"><b>Avisos</b><p class="muted sm">${txt}</p>${btn}</div>`;
 }
 
+function calSection() {
+  const url = calUrl();
+  if (!url) return `<div class="card-plain stack-s"><b>Calendario del iPhone</b><p class="muted sm">Falta actualizar la base de datos (migración 004).</p></div>`;
+  return `<div class="card-plain stack-s"><b>Calendario del iPhone</b>
+    <p class="muted sm">Los planes en los que actives «Sincronizar con mi Calendario» aparecerán en un calendario llamado <b>Findes</b> en la app Calendario. Solo tienes que suscribirte una vez.</p>
+    <a class="btn ${calSubscribed() ? '' : 'primary'}" href="${url}" data-action="cal-sub">${icon('cal', 18)} ${calSubscribed() ? 'Volver a suscribirme' : 'Suscribirme en Calendario'}</a>
+    <button class="link sm" data-action="cal-copy">Copiar enlace (es privado: no lo compartas)</button>
+    <p class="muted sm">Sincronizas ${S.synced.size} ${S.synced.size === 1 ? 'plan' : 'planes'}. iOS actualiza los calendarios suscritos cada cierto tiempo: un cambio puede tardar hasta una hora en verse.</p>
+  </div>`;
+}
+
 function viewSettings() {
   setTimeout(refreshPushState, 0);
   return `
@@ -959,6 +992,7 @@ function viewSettings() {
         <div class="grow-row"><span>Email</span><span class="muted">${esc(S.session.user.email)}</span></div>
       </div>
       ${pushSection()}
+      ${calSection()}
       <a class="group link-row" href="#/festivos/${new Date().getFullYear()}">
         <div class="grow-row"><span>Festivos</span><span class="muted">Ver y añadir ${icon('next', 16)}</span></div>
       </a>
@@ -998,9 +1032,18 @@ async function save() {
     repeat: D.repeat || null,
   };
   S.busy = true;
-  const res = D.id ? await sb.from('plans').update(row).eq('id', D.id) : await sb.from('plans').insert(row);
+  const res = D.id ? await sb.from('plans').update(row).eq('id', D.id)
+    : await sb.from('plans').insert(row).select('id').single();
   S.busy = false;
   if (res.error) { toast('No se pudo guardar: ' + res.error.message); return; }
+  const planId = D.id || res.data?.id;
+  const was = D.id ? S.synced.has(D.id) : false;
+  if (planId && D.sync !== was) {
+    const r2 = D.sync
+      ? await sb.from('calendar_sync').upsert({ plan_id: planId })
+      : await sb.from('calendar_sync').delete().eq('plan_id', planId);
+    if (r2.error) toast('Guardado, pero no se pudo cambiar la sincronización: ' + r2.error.message);
+  }
   const w = weekendContaining(row.date_from);
   S.draft = null; S.draftKey = null;
   await loadAll();
@@ -1081,6 +1124,13 @@ document.addEventListener('click', async (ev) => {
       break;
     }
     case 'repeat': D.repeat = el.dataset.v || null; render(); break;
+    case 'sync': D.sync = !D.sync; render(); break;
+    case 'cal-sub': try { localStorage.setItem(CAL_KEY, '1'); } catch (_) { /* nada */ } setTimeout(render, 500); break;
+    case 'cal-copy': {
+      try { await navigator.clipboard.writeText(calUrl().replace('webcal://', 'https://')); toast('Enlace copiado'); }
+      catch (_) { toast('No se pudo copiar'); }
+      break;
+    }
     case 'dup': await duplicate(); break;
     case 'prop-add': await acceptProposal(el.dataset.id, Number(el.dataset.year)); break;
     case 'prop-all': for (const pr of proposals(Number(el.dataset.year))) await acceptProposal(pr.p.id, pr.year, true);
