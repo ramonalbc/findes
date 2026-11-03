@@ -3,7 +3,7 @@
 export const SUPABASE_URL = 'https://sfizuisbomgkvvkvylmq.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_froAG8ZB_4InA7ItrhMYQw_t4buUvC8';
 
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.4.1';
 
 // Primer año con datos (2024 se quitó)
 export const MIN_YEAR = 2025;

@@ -644,7 +644,9 @@ function viewEditor(args) {
         <span class="muted sm hint">${D.sync
           ? (calSubscribed() ? 'Aparecerá en tu app Calendario (solo en el tuyo). Los cambios pueden tardar hasta una hora.'
             : 'Aparecerá en tu app Calendario cuando te suscribas una vez desde Ajustes → Calendario del iPhone.')
-          : 'Desactivado: este plan no sale en tu Calendario del iPhone.'}</span>
+          : (D.id && S.synced.has(D.id)
+            ? 'Al guardar se quitará de tu Calendario la próxima vez que iOS lo actualice. Para que sea al momento: app Calendario → Calendarios → desliza hacia abajo.'
+            : 'Desactivado: este plan no sale en tu Calendario del iPhone.')}</span>
       </div>
 
       <label class="field"><span class="lab">NOTAS</span>
@@ -977,7 +979,7 @@ function calSection() {
     <p class="muted sm">Los planes en los que actives «Sincronizar con mi Calendario» aparecerán en un calendario llamado <b>Findes</b> en la app Calendario. Solo tienes que suscribirte una vez.</p>
     <a class="btn ${calSubscribed() ? '' : 'primary'}" href="${url}" data-action="cal-sub">${icon('cal', 18)} ${calSubscribed() ? 'Volver a suscribirme' : 'Suscribirme en Calendario'}</a>
     <button class="link sm" data-action="cal-copy">Copiar enlace (es privado: no lo compartas)</button>
-    <p class="muted sm">Sincronizas ${S.synced.size} ${S.synced.size === 1 ? 'plan' : 'planes'}. iOS actualiza los calendarios suscritos cada cierto tiempo: un cambio puede tardar hasta una hora en verse.</p>
+    <p class="muted sm">Sincronizas ${S.synced.size} ${S.synced.size === 1 ? 'plan' : 'planes'}. iOS actualiza los calendarios suscritos cada cierto tiempo. Para verlo al momento: app Calendario → Calendarios → desliza hacia abajo. Y para que se actualice solo más a menudo: Ajustes del iPhone → Calendario → Cuentas → Obtener datos → Cada 15 minutos.</p>
   </div>`;
 }
 
@@ -1043,12 +1045,14 @@ async function save() {
       ? await sb.from('calendar_sync').upsert({ plan_id: planId })
       : await sb.from('calendar_sync').delete().eq('plan_id', planId);
     if (r2.error) toast('Guardado, pero no se pudo cambiar la sincronización: ' + r2.error.message);
+    else S.syncMsg = D.sync ? 'Plan guardado y enviado a tu Calendario' : 'Plan guardado y quitado de tu Calendario (iOS tardará un poco en reflejarlo)';
   }
   const w = weekendContaining(row.date_from);
   S.draft = null; S.draftKey = null;
   await loadAll();
   location.hash = `#/finde/${w.id}`;
-  toast('Plan guardado');
+  toast(S.syncMsg || 'Plan guardado');
+  S.syncMsg = null;
 }
 
 async function del() {
