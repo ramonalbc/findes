@@ -1,5 +1,5 @@
-import { SUPABASE_URL, SUPABASE_KEY, APP_VERSION } from './config.js';
-import { HOLIDAYS } from './holidays.js';
+import { SUPABASE_URL, SUPABASE_KEY, APP_VERSION, MIN_YEAR, YEARS_AHEAD, VAPID_PUBLIC_KEY } from './config.js';
+import { HOLIDAYS, HOLIDAY_STATUS } from './holidays.js';
 import {
   MONTHS, MONTHS_SHORT, DOW_SHORT, DOW_LETTER, DOW_LONG,
   addDays, dow, dayNum, monthIdx, diffDays, todayIso,
@@ -46,6 +46,7 @@ const S = {
   draft: null,       // plan que se está editando
   draftKey: null,
   busy: false,
+  push: null,        // estado de los avisos en este dispositivo
 };
 
 const app = document.getElementById('app');
@@ -56,14 +57,36 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 function offInfo(d) {
-  if (S.extras[d] !== undefined) return { kind: 'extra', label: S.extras[d] || 'Puente' };
   if (HOLIDAYS[d]) return { kind: 'holiday', label: HOLIDAYS[d] };
+  const ex = S.extras[d];
+  if (ex) return ex.kind === 'festivo'
+    ? { kind: 'holiday', label: ex.label || 'Festivo', custom: true }
+    : { kind: 'extra', label: ex.label || 'Puente' };
   return null;
+}
+
+const maxYear = () => new Date().getFullYear() + YEARS_AHEAD;
+const clampYear = (y) => Math.min(Math.max(y, MIN_YEAR), maxYear());
+
+function yearArrows(base, year, showYear = true) {
+  const prev = year > MIN_YEAR
+    ? `<a href="#/${base}/${year - 1}" aria-label="Año anterior">${icon('back', 18)}</a>`
+    : `<span class="off" aria-hidden="true">${icon('back', 18)}</span>`;
+  const next = year < maxYear()
+    ? `<a href="#/${base}/${year + 1}" aria-label="Año siguiente">${icon('next', 18)}</a>`
+    : `<span class="off" aria-hidden="true">${icon('next', 18)}</span>`;
+  return `<div class="yearsel">${prev}${showYear ? `<span>${year}</span>` : ''}${next}</div>`;
+}
+
+function holidayBanner(year) {
+  const st = HOLIDAY_STATUS[year];
+  if (!st || st === 'completo') return '';
+  return `<a class="banner pad-x" href="#/festivos/${year}">${esc(st)}. Se añadirán solos cuando se publiquen; mientras, puedes declarar festivos a mano ›</a>`;
 }
 
 const yearCache = new Map();
 function weekends(year) {
-  const key = year + '|' + Object.keys(S.extras).join(',');
+  const key = year + '|' + Object.entries(S.extras).map(([d, x]) => d + x.kind).join(',');
   if (!yearCache.has(key)) yearCache.set(key, weekendsOfYear(year, offInfo));
   return yearCache.get(key);
 }
@@ -172,7 +195,7 @@ async function loadAll() {
   S.me = m.data.find((x) => x.email === email) || null;
   S.plans = p.data;
   S.notes = Object.fromEntries(n.data.map((x) => [x.weekend, x.text]));
-  S.extras = Object.fromEntries(e.data.map((x) => [x.day, x.label]));
+  S.extras = Object.fromEntries(e.data.map((x) => [x.day, { label: x.label, kind: x.kind || 'puente' }]));
   yearCache.clear();
   S.loaded = true;
 }
@@ -216,11 +239,12 @@ function render() {
   if (!S.loaded) { app.innerHTML = '<div class="loading">Cargando…</div>'; return; }
   if (!S.me) { app.innerHTML = viewNoAccess(); return; }
   const r = route();
-  const y = Number(r.a) || new Date().getFullYear();
+  const y = clampYear(Number(r.a) || new Date().getFullYear());
   let html;
   switch (r.name) {
     case 'findes': html = viewList(y); break;
     case 'ano': html = viewYear(y); break;
+    case 'festivos': html = viewHolidays(y); break;
     case 'finde': html = viewWeekend(r.a); break;
     case 'nuevo': html = viewEditor({ friday: r.a, day: r.b }); break;
     case 'plan': html = viewEditor({ id: r.a }); break;
@@ -372,12 +396,9 @@ function viewList(year) {
   <main class="screen">
     <header class="top row-between">
       <div><span class="eyebrow">RAMÓN E IRENE</span><h1>Findes</h1></div>
-      <div class="yearsel">
-        <a href="#/findes/${year - 1}" aria-label="Año anterior">${icon('back', 18)}</a>
-        <span>${year}</span>
-        <a href="#/findes/${year + 1}" aria-label="Año siguiente">${icon('next', 18)}</a>
-      </div>
+      ${yearArrows('findes', year)}
     </header>
+    ${holidayBanner(year)}
     <div class="filters">
       <button class="fchip ${S.listFilter === 'todos' ? 'on' : ''}" data-action="filter" data-v="todos">Todos</button>
       <button class="fchip ${S.listFilter === 'libres' ? 'on' : ''}" data-action="filter" data-v="libres">Libres · ${free.length}</button>
@@ -394,7 +415,8 @@ function viewList(year) {
 function viewYear(year) {
   const ws = weekends(year);
   const t = todayIso();
-  const nextId = ws.find((w) => w.end >= t)?.id;
+  const cy = new Date().getFullYear();
+  const nextId = [...weekends(cy), ...weekends(cy + 1)].find((w) => w.end >= t)?.id;
   const counts = { A: 0, R: 0, I: 0, M: 0, L: 0 };
   const byMonth = Array.from({ length: 12 }, () => []);
   for (const w of ws) { const s = weekendStatus(w); counts[s]++; byMonth[w.month].push([w, s]); }
@@ -406,11 +428,9 @@ function viewYear(year) {
   <main class="screen">
     <header class="top row-between">
       <h1>${year}</h1>
-      <div class="yearsel">
-        <a href="#/ano/${year - 1}" aria-label="Año anterior">${icon('back', 18)}</a>
-        <a href="#/ano/${year + 1}" aria-label="Año siguiente">${icon('next', 18)}</a>
-      </div>
+      ${yearArrows('ano', year, false)}
     </header>
+    ${holidayBanner(year)}
     <section class="pad legend">${leg('A', 'Los dos')}${leg('R', 'Ramón')}${leg('I', 'Irene')}${leg('M', 'Cada uno lo suyo')}${leg('L', 'Libre')}</section>
     <section class="pad ygrid">
       ${byMonth.map((arr, m) => `<div class="yrow"><span class="ym ${m === new Date().getMonth() && year === new Date().getFullYear() ? 'cur' : ''}">${MONTHS_SHORT[m][0] + MONTHS_SHORT[m].slice(1).toLowerCase()}</span>
@@ -583,7 +603,111 @@ function viewEditor(args) {
   </main>`;
 }
 
+function viewHolidays(year) {
+  const official = Object.entries(HOLIDAYS).filter(([d]) => d.startsWith(String(year)))
+    .map(([d, label]) => ({ d, label, custom: false }));
+  const custom = Object.entries(S.extras).filter(([d, x]) => x.kind === 'festivo' && d.startsWith(String(year)))
+    .map(([d, x]) => ({ d, label: x.label, custom: true }));
+  const all = [...official, ...custom].sort((a, b) => a.d.localeCompare(b.d));
+  const st = HOLIDAY_STATUS[year];
+  const rows = all.length ? all.map((h) => `<div class="grow-row">
+      <span class="hdate">${DOW_SHORT[dow(h.d)]} ${dayNum(h.d)} ${MONTHS_SHORT[monthIdx(h.d)].toLowerCase()}</span>
+      <span class="grow">${esc(h.label)}${h.custom ? ' <span class="tag-own">PROPIO</span>' : ''}</span>
+      ${h.custom ? `<button class="link danger-t" data-action="del-festivo" data-day="${h.d}" aria-label="Quitar festivo">Quitar</button>` : ''}
+    </div>`).join('') : '<div class="grow-row"><span class="muted">Sin festivos para este año</span></div>';
+  return `
+  <main class="screen">
+    <div class="nav"><a href="#/ajustes">${icon('back')} Ajustes</a></div>
+    <header class="top tight row-between"><h1>Festivos</h1>${yearArrows('festivos', year)}</header>
+    <section class="pad stack">
+      ${st && st !== 'completo' ? `<div class="banner">${esc(st)}. La búsqueda mensual los añadirá cuando salgan.</div>` : ''}
+      <div class="group">${rows}</div>
+      <div class="field"><span class="lab">AÑADIR UN FESTIVO</span>
+        <div class="group">
+          <label class="grow-row"><span>Día</span><input id="fest-day" type="date" min="${year}-01-01" max="${year}-12-31"></label>
+          <label class="grow-row"><span>Nombre</span><input id="fest-name" type="text" placeholder="p. ej. San Juan de Sahagún"></label>
+        </div>
+      </div>
+      <button class="btn primary" data-action="add-festivo">Añadir festivo</button>
+      <p class="muted sm">Los festivos que caen pegados a un finde (jueves, lunes o martes) lo alargan automáticamente. Los oficiales son los de España, Castilla y León y Salamanca capital.</p>
+    </section>
+    ${tabbar('ajustes')}
+  </main>`;
+}
+
+// ---- avisos push
+
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+function b64ToBytes(b64) {
+  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+async function currentSub() {
+  if (!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.ready;
+  return reg.pushManager.getSubscription();
+}
+
+async function refreshPushState() {
+  let st;
+  if (!isStandalone()) st = 'not-installed';
+  else if (!pushSupported()) st = 'unsupported';
+  else if (Notification.permission === 'denied') st = 'denied';
+  else st = (await currentSub()) ? 'on' : 'off';
+  if (st !== S.push) { S.push = st; if (route().name === 'ajustes') render(); }
+}
+
+async function enablePush() {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('Sin permiso para avisos'); await refreshPushState(); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_PUBLIC_KEY) });
+    const j = sub.toJSON();
+    const r = await sb.from('push_subscriptions').upsert({
+      endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device: navigator.userAgent.slice(0, 120),
+    });
+    if (r.error) throw r.error;
+    toast('Avisos activados en este iPhone');
+  } catch (e) {
+    toast('No se pudieron activar: ' + (e.message || e));
+  }
+  await refreshPushState();
+}
+
+async function disablePush() {
+  const sub = await currentSub();
+  if (sub) {
+    await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+    await sub.unsubscribe();
+  }
+  toast('Avisos desactivados');
+  await refreshPushState();
+}
+
+function pushSection() {
+  const st = S.push;
+  let txt; let btn = '';
+  if (st === 'not-installed') txt = 'Para recibir avisos, abre Findes desde el icono de la pantalla de inicio (no desde Safari).';
+  else if (st === 'unsupported') txt = 'Este dispositivo no admite avisos.';
+  else if (st === 'denied') txt = 'Los avisos están bloqueados. Actívalos en Ajustes del iPhone → Notificaciones → Findes.';
+  else if (st === 'on') {
+    txt = 'Te avisaremos cuando el otro añada, cambie o borre algo.';
+    btn = `<button class="btn" data-action="test-push">Enviar aviso de prueba</button>
+           <button class="link sm" data-action="push-off">Desactivar avisos en este iPhone</button>`;
+  } else if (st === 'off') {
+    txt = 'Recibe un aviso cuando el otro añada, cambie o borre un plan.';
+    btn = '<button class="btn primary" data-action="push-on">Activar avisos en este iPhone</button>';
+  } else txt = 'Comprobando…';
+  return `<div class="card-plain stack-s"><b>Avisos</b><p class="muted sm">${txt}</p>${btn}</div>`;
+}
+
 function viewSettings() {
+  setTimeout(refreshPushState, 0);
   return `
   <main class="screen">
     <header class="top"><h1>Ajustes</h1></header>
@@ -592,6 +716,10 @@ function viewSettings() {
         <div class="grow-row"><span>Has entrado como</span><b>${esc(S.me.name)}</b></div>
         <div class="grow-row"><span>Email</span><span class="muted">${esc(S.session.user.email)}</span></div>
       </div>
+      ${pushSection()}
+      <a class="group link-row" href="#/festivos/${new Date().getFullYear()}">
+        <div class="grow-row"><span>Festivos</span><span class="muted">Ver y añadir ${icon('next', 16)}</span></div>
+      </a>
       <div class="group">
         <div class="grow-row"><span>Versión</span><span class="muted">${APP_VERSION}</span></div>
         <div class="grow-row"><span>Planes guardados</span><span class="muted">${S.plans.length}</span></div>
@@ -680,13 +808,33 @@ document.addEventListener('click', async (ev) => {
     case 'save': await save(); break;
     case 'delete': await del(); break;
     case 'add-extra': {
-      const r = await sb.from('extra_days').upsert({ day: el.dataset.day, label: 'Puente' });
+      const r = await sb.from('extra_days').upsert({ day: el.dataset.day, label: 'Puente', kind: 'puente' });
       if (r.error) toast('Error: ' + r.error.message); else { await loadAll(); render(); }
       break;
     }
     case 'del-extra': {
       const r = await sb.from('extra_days').delete().eq('day', el.dataset.day);
       if (r.error) toast('Error: ' + r.error.message); else { await loadAll(); render(); }
+      break;
+    }
+    case 'add-festivo': {
+      const day = document.getElementById('fest-day').value;
+      const label = document.getElementById('fest-name').value.trim() || 'Festivo';
+      if (!day) { toast('Elige el día'); break; }
+      const r = await sb.from('extra_days').upsert({ day, label, kind: 'festivo' });
+      if (r.error) toast('Error: ' + r.error.message); else { await loadAll(); render(); toast('Festivo añadido'); }
+      break;
+    }
+    case 'del-festivo': {
+      const r = await sb.from('extra_days').delete().eq('day', el.dataset.day);
+      if (r.error) toast('Error: ' + r.error.message); else { await loadAll(); render(); }
+      break;
+    }
+    case 'push-on': await enablePush(); break;
+    case 'push-off': await disablePush(); break;
+    case 'test-push': {
+      const r = await sb.rpc('test_push');
+      toast(r.error ? 'Error: ' + r.error.message : 'Aviso enviado: debería llegar en unos segundos');
       break;
     }
     case 'logout': await sb.auth.signOut(); break;

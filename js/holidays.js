@@ -3,6 +3,14 @@
 // Decreto 7/2026 para 2027) y calendario local de Salamanca.
 // Revisar cada otoño, cuando se publican los del año siguiente.
 
+// Estado de los festivos oficiales por año. 'completo' = nacionales + CyL + locales de Salamanca.
+// Lo mantiene al día la búsqueda mensual programada.
+export const HOLIDAY_STATUS = {
+  2026: 'completo',
+  2027: 'Faltan los 2 festivos locales de Salamanca (aún sin publicar)',
+  2028: 'Aún no se han publicado los festivos de 2028',
+};
+
 export const HOLIDAYS = {
   // ---- 2026 ----
   '2026-01-01': 'Año Nuevo',

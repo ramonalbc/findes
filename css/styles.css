@@ -209,3 +209,15 @@ h1 { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
 #toast { position: fixed; left: 50%; top: calc(var(--safe-top) + 12px); transform: translate(-50%, -80px); background: var(--ink); color: #fff;
   padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; transition: transform .25s; z-index: 50; max-width: 90vw; }
 #toast.show { transform: translate(-50%, 0); }
+
+/* v0.2 */
+.yearsel .off { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: #C9CDD4; }
+.banner { display: block; margin: 0 16px 12px; padding: 10px 14px; border-radius: 12px; background: var(--pend-bg); color: #4A3A00;
+  font-size: 13px; font-weight: 600; line-height: 1.35; text-decoration: none; }
+.pad .banner, .stack > .banner { margin: 0; }
+.tag-own { font-size: 10px; font-weight: 800; color: var(--accent); background: var(--accent-soft); padding: 2px 6px; border-radius: 6px; }
+.hdate { width: 92px; flex-shrink: 0; font-weight: 700; font-size: 14px; }
+.danger-t { color: #A11B1B; font-size: 14px; }
+.link-row { text-decoration: none; color: var(--ink); }
+.link-row .muted { display: flex; align-items: center; gap: 2px; }
+.card-plain.stack-s p { margin: 0; }
