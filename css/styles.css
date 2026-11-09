@@ -277,3 +277,7 @@ h1 { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
 .calmark { color: var(--accent); vertical-align: -2px; }
 .calrow { display: flex; align-items: center; gap: 8px; }
 .calrow svg { color: var(--accent); }
+.lab.sub { margin: 8px 0 0; }
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.card-plain .btn:not(.primary) { background: #EEF0F3; }
+@media (prefers-color-scheme: dark) { .card-plain .btn:not(.primary) { background: #2C2C2E; } }

@@ -642,10 +642,10 @@ function viewEditor(args) {
             <button type="button" class="switch ${D.sync ? 'on' : ''}" data-action="sync" role="switch" aria-checked="${D.sync}" aria-label="Sincronizar con mi Calendario"><i></i></button></div>
         </div>
         <span class="muted sm hint">${D.sync
-          ? (calSubscribed() ? 'Aparecerá en tu app Calendario (solo en el tuyo). Los cambios pueden tardar hasta una hora.'
-            : 'Aparecerá en tu app Calendario cuando te suscribas una vez desde Ajustes → Calendario del iPhone.')
+          ? (calSubscribed() ? 'Aparecerá en tu calendario Findes (solo en el tuyo). Los cambios tardan un poco en verse en el Calendario del iPhone y más en Google.'
+            : 'Aparecerá en tu calendario (iPhone o Google) cuando te suscribas una vez desde Ajustes → Calendario.')
           : (D.id && S.synced.has(D.id)
-            ? 'Al guardar se quitará de tu Calendario la próxima vez que iOS lo actualice. Para que sea al momento: app Calendario → Calendarios → desliza hacia abajo.'
+            ? 'Al guardar se quitará de tu calendario la próxima vez que se actualice (en el iPhone puedes forzarlo: Calendario → Calendarios → desliza hacia abajo; Google tarda más).'
             : 'Desactivado: este plan no sale en tu Calendario del iPhone.')}</span>
       </div>
 
@@ -974,12 +974,24 @@ function pushSection() {
 
 function calSection() {
   const url = calUrl();
-  if (!url) return `<div class="card-plain stack-s"><b>Calendario del iPhone</b><p class="muted sm">Falta actualizar la base de datos (migración 004).</p></div>`;
-  return `<div class="card-plain stack-s"><b>Calendario del iPhone</b>
-    <p class="muted sm">Los planes en los que actives «Sincronizar con mi Calendario» aparecerán en un calendario llamado <b>Findes</b> en la app Calendario. Solo tienes que suscribirte una vez.</p>
+  if (!url) return `<div class="card-plain stack-s"><b>Calendario</b><p class="muted sm">Falta actualizar la base de datos (migración 004).</p></div>`;
+  const n = S.synced.size;
+  return `<div class="card-plain stack-s"><b>Calendario</b>
+    <p class="muted sm">Los planes en los que actives «Sincronizar con mi Calendario» aparecerán en un calendario llamado <b>Findes</b>. Sincronizas ${n} ${n === 1 ? 'plan' : 'planes'}. Solo tienes que suscribirte una vez, en el calendario que uses:</p>
+
+    <span class="lab sub">CALENDARIO DEL IPHONE</span>
     <a class="btn ${calSubscribed() ? '' : 'primary'}" href="${url}" data-action="cal-sub">${icon('cal', 18)} ${calSubscribed() ? 'Volver a suscribirme' : 'Suscribirme en Calendario'}</a>
-    <button class="link sm" data-action="cal-copy">Copiar enlace (es privado: no lo compartas)</button>
-    <p class="muted sm">Sincronizas ${S.synced.size} ${S.synced.size === 1 ? 'plan' : 'planes'}. iOS actualiza los calendarios suscritos cada cierto tiempo. Para verlo al momento: app Calendario → Calendarios → desliza hacia abajo. Y para que se actualice solo más a menudo: Ajustes del iPhone → Calendario → Cuentas → Obtener datos → Cada 15 minutos.</p>
+    <p class="muted sm">Para ver un cambio al momento: app Calendario → Calendarios → desliza hacia abajo. Para que se actualice solo más a menudo: Ajustes del iPhone → Calendario → Cuentas → Obtener datos → Cada 15 minutos.</p>
+
+    <span class="lab sub">GOOGLE CALENDAR</span>
+    <button class="btn" data-action="cal-copy">${icon('copy', 18)} Copiar mi enlace para Google</button>
+    <ol class="steps muted sm">
+      <li>Abre <b>calendar.google.com</b> en el navegador (en la app de Google Calendar no se puede; en el iPhone, en Safari pide «Solicitar sitio web de escritorio»).</li>
+      <li>A la izquierda, junto a «Otros calendarios», pulsa <b>+</b> → <b>Desde URL</b>.</li>
+      <li>Pega el enlace y pulsa <b>Añadir calendario</b>. Después puedes cambiarle el nombre y el color.</li>
+    </ol>
+    <p class="muted sm">Google actualiza los calendarios por enlace cuando quiere (de unas horas a un día) y no se puede forzar: los cambios en Findes no se verán al momento en Google.</p>
+    <p class="muted sm">El enlace es privado: con él se ven tus planes sincronizados, no lo compartas.</p>
   </div>`;
 }
 
@@ -1045,7 +1057,7 @@ async function save() {
       ? await sb.from('calendar_sync').upsert({ plan_id: planId })
       : await sb.from('calendar_sync').delete().eq('plan_id', planId);
     if (r2.error) toast('Guardado, pero no se pudo cambiar la sincronización: ' + r2.error.message);
-    else S.syncMsg = D.sync ? 'Plan guardado y enviado a tu Calendario' : 'Plan guardado y quitado de tu Calendario (iOS tardará un poco en reflejarlo)';
+    else S.syncMsg = D.sync ? 'Plan guardado y enviado a tu Calendario' : 'Plan guardado y quitado de tu calendario (tardará un poco en reflejarse)';
   }
   const w = weekendContaining(row.date_from);
   S.draft = null; S.draftKey = null;
@@ -1131,7 +1143,7 @@ document.addEventListener('click', async (ev) => {
     case 'sync': D.sync = !D.sync; render(); break;
     case 'cal-sub': try { localStorage.setItem(CAL_KEY, '1'); } catch (_) { /* nada */ } setTimeout(render, 500); break;
     case 'cal-copy': {
-      try { await navigator.clipboard.writeText(calUrl().replace('webcal://', 'https://')); toast('Enlace copiado'); }
+      try { await navigator.clipboard.writeText(calUrl().replace('webcal://', 'https://')); toast('Enlace copiado: pégalo en Google Calendar → Otros calendarios → + → Desde URL'); }
       catch (_) { toast('No se pudo copiar'); }
       break;
     }

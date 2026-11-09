@@ -1,7 +1,7 @@
 // Service worker: primero red (para recibir siempre la última versión), caché como respaldo sin conexión.
-const CACHE = 'findes-v0.4.1';
+const CACHE = 'findes-v0.4.2';
 const SHELL = [
-  './', 'index.html', 'css/styles.css?v=0.4.1', 'js/app.js?v=0.4.1', 'js/dates.js', 'js/holidays.js',
+  './', 'index.html', 'css/styles.css?v=0.4.2', 'js/app.js?v=0.4.2', 'js/dates.js', 'js/holidays.js',
   'js/config.js', 'vendor/supabase.js', 'manifest.webmanifest', 'icons/apple-touch-icon.png',
 ];
 
